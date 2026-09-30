@@ -10,7 +10,7 @@ namespace SmartEnergy.Library.Measurements.Repository;
 public class InfluxMeasurementRepository //: IMeasurementRepository
 {
     private readonly IInfluxDBClient _client;
-    private readonly List<string> _manufacturerMacs = ["16405E", "144068", "164068", "1640EF","1640D8"];
+    private readonly List<string> _manufacturerMacs = ["16405E", "144068", "164068", "1640EF","1640D8","1660C4"];
 
     public InfluxMeasurementRepository(IInfluxDBClient client)
     {

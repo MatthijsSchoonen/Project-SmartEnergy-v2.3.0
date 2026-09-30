@@ -15,7 +15,7 @@ public static class Program
         P1 meter is a Hexadecimal number. Thus you need to convert the ID from HEX to Decimal and put the number here. */
         var smartMeterConfiguration = new SmartMeterConfiguration
         {
-            MeterId = 1078608
+            MeterId = 9581639
         };
 
         // Add services to the container.
