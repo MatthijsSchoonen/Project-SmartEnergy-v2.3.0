@@ -11,4 +11,13 @@
     <ProjectReference Include="..\SmartEnergy.Library\SmartEnergy.Library.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Blazor.Bootstrap" Version="4.0.0" />
+    <PackageReference Include="BlazorExpress.ChartJS" Version="1.2.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\lib\" />
+  </ItemGroup>
+
 </Project>

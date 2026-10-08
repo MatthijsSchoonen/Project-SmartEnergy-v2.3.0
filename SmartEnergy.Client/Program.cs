@@ -32,10 +32,14 @@ public static class Program
             })
             .AddSingleton<SmartMeterConfiguration>(o => smartMeterConfiguration)
             .AddTransient<InfluxMeasurementRepository>()
-            .AddRazorComponents();
-            //.AddInteractiveServerComponents(); <-- Uncomment if you want to play around with other blazor rendering modes
-            
-            
+            .AddRazorComponents()
+            .AddInteractiveServerComponents();
+
+        builder.Services.AddBlazorBootstrap();
+
+      
+
+
 
         var app = builder.Build();
 
@@ -55,8 +59,8 @@ public static class Program
         app.UseStaticFiles();
         app.UseAntiforgery();
 
-        app.MapRazorComponents<App>();
-            //.AddInteractiveServerRenderMode(); <-- Uncomment if you want to play around with other blazor rendering modes
+        app.MapRazorComponents<App>()
+            .AddInteractiveServerRenderMode();
         app.Run();
         
         
