@@ -18,7 +18,7 @@
 	Werk hier jouw opdracht uit. Schrijf het algoritme en toon de gewenste resultaten op deze pagina.
 </p>
 
-<EditForm Model="Form" OnValidSubmit="HandleValidSubmit" FormName="your-form">
+<EditForm Model="Form" OnValidSubmit="HandleValidSubmit" FormName="your-form" class="">
 	@* Enter your form elements here as input for your algorithm. *@
 	<div class="form-group mt-4 col-4">
 		<label for="inputGetalInvoer">Getal invoerveld</label>
@@ -39,7 +39,7 @@
 
 	</div>
 
-	
+	<button type="submit" class="btn btn-success mt-3">Herlaad StaafDiagram</button>
 </EditForm>
 
 <hr />
@@ -61,18 +61,13 @@
 @code {
 	[SupplyParameterFromForm]
 	private YourForm? Form { get; set; }
-
-
-
 	int meterId; 
-	DateTime startDate = DateTime.Now;
-	DateTime endDate = DateTime.Now.AddDays(1);
-	double netMetering = 0.25;
+	DateTime startDate = DateTime.Now.AddDays(-10).Date;
+	DateTime endDate = DateTime.Now.AddDays(-5).Date;
+	decimal netMetering = 0.25m;
 	static int daysToRetrieve = 7;
 	string aggregateWindow = "1h";
-
-
-	List<string> dayLabels = new List<string>();
+	static List<MeasurementDay> MeasurementDays = new List<MeasurementDay>();
 
 
 	private BarChart barChart = default!;
@@ -80,8 +75,140 @@
 	private ChartData chartData = default!;
 	private ChartClickEventArgs? selectedChartItem;
 
-	List<Measurement>? EnergyProducedMeasurements;
-	List<Measurement>? EnergyUsedMeasurements;
+
+
+	///<summary>
+	/// method that groups energyProduced en energyUsed measurement per day 
+	/// each day has date, energyProduced in KwH and energyUsed in kwH
+	///</summary>
+	void GetMeasurements()
+	{
+		MeasurementDays = new List<MeasurementDay>();
+		List<Measurement>? energyUsed = measurementRepository.GetEnergyConsumed(smartMeterConfiguration.MeterId, startDate, endDate.AddHours(23).AddMinutes(59).AddSeconds(59), aggregateWindow);
+		List<Measurement>? energyProduced = measurementRepository.GetEnergyProduced(smartMeterConfiguration.MeterId, startDate, endDate.AddHours(23).AddMinutes(59).AddSeconds(59), aggregateWindow);
+
+		double meterStandProduced = int.MaxValue;
+		double meterStandUsed = int.MaxValue;
+		DateTime day = DateTime.Now.AddYears(1000);
+
+		// loop over every measurement in energyProduced 
+		// every date in found in energyProduced makes a new record in MeasurementDays
+		// energy used gets set to 0 
+		foreach (Measurement measurement in energyProduced)
+		{
+			if (startDate > measurement.Timestamp)
+			{
+				continue;
+			}
+
+			if (day != measurement.Timestamp.Date)
+			{
+				if (meterStandProduced != int.MaxValue)
+				{
+					MeasurementDays.Add(new(day, measurement.Value - meterStandProduced, 0));
+					meterStandProduced = measurement.Value;
+				}
+				day = measurement.Timestamp.Date;
+			}
+
+			if (meterStandProduced > measurement.Value)
+			{
+				meterStandProduced = measurement.Value;
+			}
+
+			if (energyProduced.Last() == measurement || endDate.AddHours(23).AddMinutes(59) < measurement.Timestamp)
+			{
+				MeasurementDays.Add(new(day, measurement.Value - meterStandProduced, 0));
+				meterStandProduced = measurement.Value;
+				break;
+			}
+		}
+
+		//reset day to reuse
+		day = DateTime.Now.AddYears(1000);
+
+		//loop over every measurement in energyUsed
+		//match the date to an record in MeasurementDays 
+		// update the energyUsed in the found record in MeasurementDays
+		foreach (Measurement measurement in energyUsed)
+		{
+			if (startDate > measurement.Timestamp)
+			{
+				continue;
+			}
+
+
+			if (day != measurement.Timestamp.Date)
+			{	
+				if (meterStandUsed != int.MaxValue)
+				{	
+					if (MeasurementDays.Where(measurementDay => measurementDay.Date == day).FirstOrDefault() != null)
+					{
+						MeasurementDays.Where(measurementDay => measurementDay.Date == day).FirstOrDefault().EnergyUsed = measurement.Value - meterStandUsed;
+					}
+
+					meterStandUsed = measurement.Value;
+				}
+				day = measurement.Timestamp.Date;
+			}
+
+			if (meterStandUsed > measurement.Value)
+			{
+				meterStandUsed = measurement.Value;
+			}
+
+
+			if (energyUsed.Last() == measurement || endDate.AddHours(23).AddMinutes(59) < measurement.Timestamp)
+			{
+				if (MeasurementDays.Where(measurementDay => measurementDay.Date == day).FirstOrDefault() != null)
+				{
+					MeasurementDays.Where(measurementDay => measurementDay.Date == day).FirstOrDefault().EnergyUsed = measurement.Value - meterStandUsed;
+				}
+				meterStandUsed = measurement.Value;
+				break;
+			}
+		}
+	}
+
+	List<string>? GetReturnDayLabels()
+	{
+		List<string>? dates = new List<string>();
+		foreach (MeasurementDay day in MeasurementDays)
+		{
+			dates.Add(day.Date.ToShortDateString());
+		}
+		return dates;
+	}
+
+	List<double?> GetEnergyProduced()
+	{
+		List<double?> producedEnergy = new List<double?>();
+		foreach (MeasurementDay day in MeasurementDays)
+		{
+			producedEnergy.Add(day.EnergyProduced);
+		}
+		return producedEnergy;
+	}
+
+	List<double?> GetEnergyUsed()
+	{
+		List<double?> usedEnergy = new List<double?>();
+		foreach (MeasurementDay day in MeasurementDays)
+		{
+			usedEnergy.Add(day.EnergyUsed);
+		}
+		return usedEnergy;
+	}
+
+	List<double?> GetNetMetering()
+	{
+		List<double?> netMetering = new List<double?>();
+		foreach (MeasurementDay day in MeasurementDays)
+		{
+			netMetering.Add(day.EnergyUsed - day.EnergyProduced);
+		}
+		return netMetering;
+	}
 
 
 	/// <summary>
@@ -89,56 +216,52 @@
 	/// </summary>
 	protected override void OnInitialized()
 	{
-		EnergyUsedMeasurements = measurementRepository.GetEnergyConsumed(smartMeterConfiguration.MeterId, daysToRetrieve, aggregateWindow);
-		EnergyProducedMeasurements = measurementRepository.GetEnergyProduced(smartMeterConfiguration.MeterId, daysToRetrieve, aggregateWindow);
+		GetMeasurements();
 		Debug.WriteLine("Page loaded!");
 
 		// Initialize form with default values
 		if (Form == null)
 		{
 			Form = new YourForm();
+			Form.StartDate = startDate;
+			Form.EndDate = endDate;
 		}
 
+		LoadBarChart();
+	}
 
+	void LoadBarChart()
+	{
 		chartData = new ChartData
 		{
-			Labels = dayLabels,
+			Labels = GetReturnDayLabels(),
 			Datasets = new List<IChartDataset>
 			{
 				new BarChartDataset
 				{
 					Label = "Energie geproduced",
-					Data = GetEnergyProducedData(true),
+					Data = GetEnergyProduced(),
 					BackgroundColor = new List<string> { "#36A2EB" },
 				},
 					new BarChartDataset
 				{
 					Label = "Energie gebruikt",
-					Data = GetEnergyUsedData(),
+					Data = GetEnergyUsed(),
 					BackgroundColor = new List<string> { "#36A200" },
 				},
 					new BarChartDataset
 				{
 					Label = "energie gesaldeerd",
-					Data = GetEnergyProducedData(),
+					Data = GetNetMetering(),
 					BackgroundColor = new List<string> { "#39A2EB" },
 				},
 			},
 		};
 
 		barChartOptions = new BarChartOptions { Responsive = true };
-
 	}
 
-	public void OnDateChanged()
-	{
-		int days = (startDate - endDate).Days;
-		if (days <= 0)
-		{
-			daysToRetrieve = 1;
-		}
-		daysToRetrieve = days;
-	}
+
 
 	/// <summary>
 	/// This method is executed when the FORM is posted
@@ -148,91 +271,36 @@
 		Debug.WriteLine("Form posted!");
 
 		// Your algorithm here.
+
+		if (Form?.NetMetering != null || Form?.NetMetering == 0)
+			Form.NetMetering = netMetering;
+
+		if (Form?.StartDate == null)
+			Form?.StartDate = startDate;
+
+		if (Form?.EndDate == null)
+			Form?.EndDate = endDate;
+
+		if (Form?.EndDate <= Form?.StartDate)
+			Form.EndDate = Form.StartDate.AddDays(-1);
+
+		netMetering = Form.NetMetering;
+		startDate = Form.StartDate;
+		endDate = Form.EndDate.Date;;
+		
+
+		GetMeasurements();
+		LoadBarChart();
+		barChart.UpdateAsync(chartData, barChartOptions);
 	}
 
 	public class YourForm
 	{
 		// Enter the desired form values here (check the example page on how to make this work)
 		public Decimal NetMetering { get; set; } = 0.25M;
-		public DateTime? StartDate { get; set; }
-		public DateTime? EndDate { get; set; }
+		public DateTime StartDate { get; set; }
+		public DateTime EndDate { get; set; }
 	}
-
-	List<double?> GetEnergyProducedData(bool addDayLabels = false){
-		List<double?> data = new List<double?>();
-
-		double meterStand = int.MaxValue;
-		DateTime day = DateTime.Now.AddYears(-100);
-
-
-		foreach(Measurement measurement in EnergyProducedMeasurements)
-		{
-			if(day != measurement.Timestamp.Date)
-			{
-				day = measurement.Timestamp.Date;
-				if(meterStand != int.MaxValue)
-				{
-					data.Add(measurement.Value - meterStand);
-					meterStand = measurement.Value;
-				}
-				if (addDayLabels)
-				{
-					dayLabels.Add(measurement.Timestamp.Date.ToString());
-				}
-			}
-
-			if(meterStand > measurement.Value)
-			{
-				meterStand = measurement.Value;
-			}
-
-			if (EnergyProducedMeasurements.Last() == measurement)
-			{
-				data.Add(measurement.Value - meterStand);
-				meterStand = measurement.Value;
-			}
-		}
-
-		return data;
-	}
-
-	List<double?> GetEnergyUsedData()
-	{
-		List<double?> data = new List<double?>();
-		double meterStand = int.MaxValue;
-		DateTime day = DateTime.Now.AddYears(-100);
-
-		foreach (Measurement measurement in EnergyUsedMeasurements)
-		{
-			if (day != measurement.Timestamp.Date)
-			{
-				day = measurement.Timestamp.Date;
-				if (meterStand != int.MaxValue)
-				{
-					data.Add(measurement.Value - meterStand);
-					meterStand = measurement.Value;
-				}
-			}
-
-			if (meterStand > measurement.Value)
-			{
-				meterStand = measurement.Value;
-			}
-
-			if (EnergyUsedMeasurements.Last() == measurement)
-			{
-				data.Add(measurement.Value - meterStand);
-				meterStand = measurement.Value;
-			}
-		}
-
-		return data;
-	}
-
-	
-	
-
-
 
 	protected override async Task OnAfterRenderAsync(bool firstRender)
 	{
@@ -251,6 +319,20 @@
 	private static string FormatLabel(ChartClickEventArgs eventArgs) => eventArgs.Label ?? $"item {eventArgs.Index}";
 
 	private static string FormatValue(ChartClickEventArgs eventArgs) => eventArgs.Value?.ToString() ?? "null";
+
+	public class MeasurementDay
+	{
+		public MeasurementDay(DateTime date, double energyProduced, double energyUsed)
+		{
+			this.Date = date;
+			this.EnergyProduced = energyProduced;
+			this.EnergyUsed = energyUsed;
+		}
+
+		public DateTime Date { get; set; }
+		public double EnergyProduced { get; set; }
+		public double EnergyUsed { get; set; }
+	}
 }
 
 	
