@@ -21,19 +21,19 @@
 <EditForm Model="Form" OnValidSubmit="HandleValidSubmit" FormName="your-form" class="">
 	@* Enter your form elements here as input for your algorithm. *@
 	<div class="form-group mt-4 col-4">
-		<label for="inputGetalInvoer">Getal invoerveld</label>
+		<label for="inputGetalInvoer">Energie Tarief per Kwh</label>
 		<InputNumber class="form-control" id="inputGetalInvoer" placeholder="Voer een Saldeer bedrag in"
 					 @bind-Value="Form!.NetMetering" />
 
 	</div>
 	<div class="form-group mt-4 col-4">
-		<label for="inputDatumInvoer">Datum invoerveld</label>
+		<label for="inputDatumInvoer">Start Datum</label>
 		<InputDate class="form-control" id="inputDatumInvoer" placeholder="Voer een start datum in"
 				   @bind-Value="Form!.StartDate" />
 
 	</div>
 	<div class="form-group mt-4 col-4">
-		<label for="inputDatumInvoer">Datum invoerveld</label>
+		<label for="inputDatumInvoer">eind Datum</label>
 		<InputDate class="form-control" id="inputDatumInvoer" placeholder="Voer een eind datum in"
 				   @bind-Value="Form!.EndDate" />
 
@@ -62,11 +62,11 @@
 	[SupplyParameterFromForm]
 	private YourForm? Form { get; set; }
 	int meterId; 
-	DateTime startDate = DateTime.Now.AddDays(-10).Date;
-	DateTime endDate = DateTime.Now.AddDays(-5).Date;
+	DateTime startDate = DateTime.Now.AddDays(-7).Date;
+	DateTime endDate = DateTime.Now.Date;
 	decimal netMetering = 0.25m;
 	static int daysToRetrieve = 7;
-	string aggregateWindow = "1h";
+	string aggregateWindow = "15m";
 	static List<MeasurementDay> MeasurementDays = new List<MeasurementDay>();
 
 
@@ -89,11 +89,14 @@
 
 		double meterStandProduced = int.MaxValue;
 		double meterStandUsed = int.MaxValue;
+		double meterStand = 0;
+		decimal energyNetMetered = 0;
 		DateTime day = DateTime.Now.AddYears(1000);
 
 		// loop over every measurement in energyProduced 
 		// every date in found in energyProduced makes a new record in MeasurementDays
 		// energy used gets set to 0 
+
 		foreach (Measurement measurement in energyProduced)
 		{
 			if (startDate > measurement.Timestamp)
@@ -101,14 +104,19 @@
 				continue;
 			}
 
+			if (meterStand == 0)
+				meterStand = measurement.Value;
+
 			if (day != measurement.Timestamp.Date)
 			{
 				if (meterStandProduced != int.MaxValue)
 				{
-					MeasurementDays.Add(new(day, measurement.Value - meterStandProduced, 0));
+					MeasurementDays.Add(new(day, measurement.Value - meterStandProduced, 0, energyNetMetered));
 					meterStandProduced = measurement.Value;
 				}
+				//update day and reset netmetering
 				day = measurement.Timestamp.Date;
+				energyNetMetered = 0;
 			}
 
 			if (meterStandProduced > measurement.Value)
@@ -116,9 +124,15 @@
 				meterStandProduced = measurement.Value;
 			}
 
+			if (meterStand < measurement.Value)
+			{
+				energyNetMetered += (decimal)measurement.EnergyPrice;
+				meterStand = measurement.Value;
+			}
+
 			if (energyProduced.Last() == measurement || endDate.AddHours(23).AddMinutes(59) < measurement.Timestamp)
 			{
-				MeasurementDays.Add(new(day, measurement.Value - meterStandProduced, 0));
+				MeasurementDays.Add(new(day, measurement.Value - meterStandProduced, 0, energyNetMetered));
 				meterStandProduced = measurement.Value;
 				break;
 			}
@@ -182,32 +196,32 @@
 
 	List<double?> GetEnergyProduced()
 	{
-		List<double?> producedEnergy = new List<double?>();
+		List<double?> producedEnergyDays = new List<double?>();
 		foreach (MeasurementDay day in MeasurementDays)
 		{
-			producedEnergy.Add(day.EnergyProduced);
+			producedEnergyDays.Add((double)day.EnergyNetMetered);
 		}
-		return producedEnergy;
+		return producedEnergyDays;
 	}
 
 	List<double?> GetEnergyUsed()
 	{
-		List<double?> usedEnergy = new List<double?>();
+		List<double?> usedEnergyDays = new List<double?>();
 		foreach (MeasurementDay day in MeasurementDays)
 		{
-			usedEnergy.Add(day.EnergyUsed);
+			usedEnergyDays.Add(day.EnergyUsed * (double)netMetering);
 		}
-		return usedEnergy;
+		return usedEnergyDays;
 	}
 
 	List<double?> GetNetMetering()
 	{
-		List<double?> netMetering = new List<double?>();
+		List<double?> netMeterings = new List<double?>();
 		foreach (MeasurementDay day in MeasurementDays)
 		{
-			netMetering.Add(day.EnergyUsed - day.EnergyProduced);
+			netMeterings.Add((day.EnergyUsed - day.EnergyProduced) * (double)netMetering);
 		}
-		return netMetering;
+		return netMeterings;
 	}
 
 
@@ -239,19 +253,19 @@
 			{
 				new BarChartDataset
 				{
-					Label = "Energie geproduced",
+					Label = "Energie geproduceerd Dynamisch tarief uitbetaald",
 					Data = GetEnergyProduced(),
 					BackgroundColor = new List<string> { "#36A2EB" },
 				},
 					new BarChartDataset
 				{
-					Label = "Energie gebruikt",
+					Label = "Energie verbruikt met invoerveld tarief",
 					Data = GetEnergyUsed(),
 					BackgroundColor = new List<string> { "#36A200" },
 				},
 					new BarChartDataset
 				{
-					Label = "energie gesaldeerd",
+					Label = "energie gesaldeerd met invoerveld tarief",
 					Data = GetNetMetering(),
 					BackgroundColor = new List<string> { "#39A2EB" },
 				},
@@ -272,7 +286,7 @@
 
 		// Your algorithm here.
 
-		if (Form?.NetMetering != null || Form?.NetMetering == 0)
+		if (Form?.NetMetering == null || Form?.NetMetering == 0)
 			Form.NetMetering = netMetering;
 
 		if (Form?.StartDate == null)
@@ -287,7 +301,7 @@
 		netMetering = Form.NetMetering;
 		startDate = Form.StartDate;
 		endDate = Form.EndDate.Date;;
-		
+
 
 		GetMeasurements();
 		LoadBarChart();
@@ -322,16 +336,18 @@
 
 	public class MeasurementDay
 	{
-		public MeasurementDay(DateTime date, double energyProduced, double energyUsed)
+		public MeasurementDay(DateTime date, double energyProduced, double energyUsed, decimal energyNetMetered)
 		{
 			this.Date = date;
 			this.EnergyProduced = energyProduced;
 			this.EnergyUsed = energyUsed;
+			this.EnergyNetMetered = energyNetMetered;
 		}
 
 		public DateTime Date { get; set; }
 		public double EnergyProduced { get; set; }
 		public double EnergyUsed { get; set; }
+		public decimal EnergyNetMetered { get; set; }
 	}
 }
 
