@@ -61,17 +61,18 @@
 @code {
 	[SupplyParameterFromForm]
 	private YourForm? Form { get; set; }
-	private List<Measurement>? EnergyConsumedMeasurements;
-	private List<Measurement>? EnergyProducedMeasurements;
+
+
 
 	int meterId; 
 	DateTime startDate = DateTime.Now;
 	DateTime endDate = DateTime.Now.AddDays(1);
 	double netMetering = 0.25;
-	static int daysToRetrieve = 1;
-	string aggregateWindow = "5m";
+	static int daysToRetrieve = 7;
+	string aggregateWindow = "1h";
 
 
+	List<string> dayLabels = new List<string>();
 
 
 	private BarChart barChart = default!;
@@ -79,16 +80,17 @@
 	private ChartData chartData = default!;
 	private ChartClickEventArgs? selectedChartItem;
 
+	List<Measurement>? EnergyProducedMeasurements;
+	List<Measurement>? EnergyUsedMeasurements;
+
 
 	/// <summary>
 	/// This method is executed when the page is loaded!
 	/// </summary>
 	protected override void OnInitialized()
 	{
-		meterId = smartMeterConfiguration.MeterId; 
-		EnergyConsumedMeasurements = this.measurementRepository.GetEnergyConsumed(meterId, daysToRetrieve, aggregateWindow);
-		EnergyProducedMeasurements = this.measurementRepository.GetEnergyProduced(meterId, daysToRetrieve, aggregateWindow);
-
+		EnergyUsedMeasurements = measurementRepository.GetEnergyConsumed(smartMeterConfiguration.MeterId, daysToRetrieve, aggregateWindow);
+		EnergyProducedMeasurements = measurementRepository.GetEnergyProduced(smartMeterConfiguration.MeterId, daysToRetrieve, aggregateWindow);
 		Debug.WriteLine("Page loaded!");
 
 		// Initialize form with default values
@@ -100,25 +102,25 @@
 
 		chartData = new ChartData
 		{
-			Labels = new List<string> { "January", "February", "March" },
+			Labels = dayLabels,
 			Datasets = new List<IChartDataset>
 			{
 				new BarChartDataset
 				{
-					Label = "Orders",
-					Data = new List<double?> { 45, 68, 54 },
+					Label = "Energie geproduced",
+					Data = GetEnergyProducedData(true),
 					BackgroundColor = new List<string> { "#36A2EB" },
 				},
 					new BarChartDataset
 				{
-					Label = "Orders",
-					Data = new List<double?> { 40, 60, 50 },
+					Label = "Energie gebruikt",
+					Data = GetEnergyUsedData(),
 					BackgroundColor = new List<string> { "#36A200" },
 				},
 					new BarChartDataset
 				{
-					Label = "Orders",
-					Data = new List<double?> { 55, 78, 64 },
+					Label = "energie gesaldeerd",
+					Data = GetEnergyProducedData(),
 					BackgroundColor = new List<string> { "#39A2EB" },
 				},
 			},
@@ -156,6 +158,78 @@
 		public DateTime? EndDate { get; set; }
 	}
 
+	List<double?> GetEnergyProducedData(bool addDayLabels = false){
+		List<double?> data = new List<double?>();
+
+		double meterStand = int.MaxValue;
+		DateTime day = DateTime.Now.AddYears(-100);
+
+
+		foreach(Measurement measurement in EnergyProducedMeasurements)
+		{
+			if(day != measurement.Timestamp.Date)
+			{
+				day = measurement.Timestamp.Date;
+				if(meterStand != int.MaxValue)
+				{
+					data.Add(measurement.Value - meterStand);
+					meterStand = measurement.Value;
+				}
+				if (addDayLabels)
+				{
+					dayLabels.Add(measurement.Timestamp.Date.ToString());
+				}
+			}
+
+			if(meterStand > measurement.Value)
+			{
+				meterStand = measurement.Value;
+			}
+
+			if (EnergyProducedMeasurements.Last() == measurement)
+			{
+				data.Add(measurement.Value - meterStand);
+				meterStand = measurement.Value;
+			}
+		}
+
+		return data;
+	}
+
+	List<double?> GetEnergyUsedData()
+	{
+		List<double?> data = new List<double?>();
+		double meterStand = int.MaxValue;
+		DateTime day = DateTime.Now.AddYears(-100);
+
+		foreach (Measurement measurement in EnergyUsedMeasurements)
+		{
+			if (day != measurement.Timestamp.Date)
+			{
+				day = measurement.Timestamp.Date;
+				if (meterStand != int.MaxValue)
+				{
+					data.Add(measurement.Value - meterStand);
+					meterStand = measurement.Value;
+				}
+			}
+
+			if (meterStand > measurement.Value)
+			{
+				meterStand = measurement.Value;
+			}
+
+			if (EnergyUsedMeasurements.Last() == measurement)
+			{
+				data.Add(measurement.Value - meterStand);
+				meterStand = measurement.Value;
+			}
+		}
+
+		return data;
+	}
+
+	
 	
 
 
