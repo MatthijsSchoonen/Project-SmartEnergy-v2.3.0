@@ -18,44 +18,51 @@
 	Werk hier jouw opdracht uit. Schrijf het algoritme en toon de gewenste resultaten op deze pagina.
 </p>
 
-<EditForm Model="Form" OnValidSubmit="HandleValidSubmit" FormName="your-form" class="">
-	@* Enter your form elements here as input for your algorithm. *@
-	<div class="form-group mt-4 col-4">
-		<label for="inputGetalInvoer">Energie Tarief per Kwh</label>
-		<InputNumber class="form-control" id="inputGetalInvoer" placeholder="Voer een Saldeer bedrag in"
-					 @bind-Value="Form!.NetMetering" />
+<div class="d-flex justify-content-between">
+	<EditForm Model="Form" OnValidSubmit="HandleValidSubmit" FormName="your-form" class="d-flex justify-content-between w-50 align-items-end">
+		@* Enter your form elements here as input for your algorithm. *@
+		
+		<div class="form-group primary rounded text-white d-flex justify-content-center align-items-center flex-column h-65">
+			<label for="inputDatumInvoer" class="px-3 ">Start Datum</label>
+			<InputDate class="form-control w-80 center" id="inputDatumInvoer" placeholder="Voer een start datum in"
+					   @bind-Value="Form!.StartDate"  />
 
+		</div>
+		<div class="form-group primary rounded text-white d-flex justify-content-center align-items-center flex-column h-65">
+			<label for="inputDatumInvoer" class="px-3 ">Eind Datum</label>
+			<InputDate class="form-control w-80 center" id="inputDatumInvoer" placeholder="Voer een eind datum in"
+					   @bind-Value="Form!.EndDate" />
+
+		</div>
+
+		<div class="form-group primary rounded text-white d-flex justify-content-center align-items-center flex-column h-65">
+			<label for="inputGetalInvoer" class="px-3">Energie Tarief per Kwh</label>
+			<InputNumber class="form-control w-80 center" id="inputGetalInvoer" placeholder="Voer een Saldeer bedrag in"
+						 @bind-Value="Form!.NetMetering" />
+
+		</div>
+
+		<div class="primary rounded d-flex justify-content-center align-items-center h-65 w-30">
+			<button type="submit" class="btn text-white border  w-80 ">Herlaad StaafDiagram</button>
+		</div>
+		
+	</EditForm>
+
+	<div class="primary rounded">
+		<p class="text-white p-3"><span><Icon Name="IconName.SquareFill"  Color="IconColor.Success"/></span> Energieopbrengst dynamisch tarief</p>
+		<p class="text-white p-3"><span><Icon Name="IconName.SquareFill"  Color="IconColor.Danger"/></span> Energieverbruik invoertarief</p>
+		<p class="text-white p-3"><span><Icon Name="IconName.SquareFill"  Color="IconColor.Warning"/></span> Energiesaldering invoertarief</p>
 	</div>
-	<div class="form-group mt-4 col-4">
-		<label for="inputDatumInvoer">Start Datum</label>
-		<InputDate class="form-control" id="inputDatumInvoer" placeholder="Voer een start datum in"
-				   @bind-Value="Form!.StartDate" />
+</div>
 
-	</div>
-	<div class="form-group mt-4 col-4">
-		<label for="inputDatumInvoer">eind Datum</label>
-		<InputDate class="form-control" id="inputDatumInvoer" placeholder="Voer een eind datum in"
-				   @bind-Value="Form!.EndDate" />
-
-	</div>
-
-	<button type="submit" class="btn btn-success mt-3">Herlaad StaafDiagram</button>
-</EditForm>
 
 <hr />
 
 @* The output of your algoritm here *@
 
-<BarChart @ref="barChart" Width="800" OnClick="HandleClickAsync" />
+<BarChart @ref="barChart" Height="450" Width="1600" OnClick="HandleClickAsync" />
 
-@if (selectedChartItem is not null)
-{
-	<p class="mt-3 mb-0">
-		Selected: @selectedChartItem.DatasetLabel (dataset @selectedChartItem.DatasetIndex),
-		@FormatLabel(selectedChartItem) (index @selectedChartItem.Index),
-		value @FormatValue(selectedChartItem)
-	</p>
-}
+
 
 
 @code {
@@ -253,26 +260,27 @@
 			{
 				new BarChartDataset
 				{
-					Label = "Energie geproduceerd Dynamisch tarief uitbetaald",
+					Label = "Energie geproduceerd met dynamisch tarief €",
 					Data = GetEnergyProduced(),
-					BackgroundColor = new List<string> { "#36A2EB" },
+					BackgroundColor = new List<string> { "#198754" },
 				},
 					new BarChartDataset
 				{
-					Label = "Energie verbruikt met invoerveld tarief",
+					Label = "Energie verbruikt met invoerveld tarief €",
 					Data = GetEnergyUsed(),
-					BackgroundColor = new List<string> { "#36A200" },
+					BackgroundColor = new List<string> { "#dc3545" },
 				},
 					new BarChartDataset
 				{
-					Label = "energie gesaldeerd met invoerveld tarief",
+					Label = "Energie gesaldeerd met invoerveld tarief €",
 					Data = GetNetMetering(),
-					BackgroundColor = new List<string> { "#39A2EB" },
+					BackgroundColor = new List<string> { "#ffc107" },
 				},
 			},
 		};
 
 		barChartOptions = new BarChartOptions { Responsive = true };
+		barChartOptions.Plugins.Legend.Display = false;
 	}
 
 
@@ -296,7 +304,7 @@
 			Form?.EndDate = endDate;
 
 		if (Form?.EndDate <= Form?.StartDate)
-			Form.EndDate = Form.StartDate.AddDays(-1);
+			Form.EndDate = Form.StartDate.AddDays(1);
 
 		netMetering = Form.NetMetering;
 		startDate = Form.StartDate;
@@ -351,4 +359,37 @@
 	}
 }
 
+<style>
+
+	p{
+		margin: 0;
+		padding: 0;
+	}
+
+	.primary{
+		background-color: #0c2263;
+	}
+
+    .w-30 {
+        width: 30%;
+    }
+
+    .w-50 {
+        width: 50%;
+    }
+
+    .w-80 {
+        width: 80%;
+    }
+
+	.center{
+		margin: 0 auto;
+	}
+
+	.h-65{
+        height: 65%;
+    }
+
 	
+	
+</style>
